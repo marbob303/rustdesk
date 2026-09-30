@@ -52,7 +52,7 @@ screencapturekit = ["cpal/screencapturekit"]
 [dependencies]
 async-trait = "0.1"
 scrap = { path = "libs/scrap", features = ["wayland"] }
-hbb_common = { path = "libs/hbb_common", features = ["webrtc"] }
+hbb_common = { path = "libs/hbb_common_custom", features = ["webrtc"] }
 base = { path = "libs/base" }
 serde_derive = "1.0"
 serde = "1.0"
@@ -212,7 +212,7 @@ jni = "0.21"
 android-wakelock = { git = "https://github.com/rustdesk-org/android-wakelock" }
 
 [workspace]
-members = ["libs/scrap", "libs/hbb_common", "libs/base", "libs/enigo", "libs/clipboard", "libs/virtual_display", "libs/virtual_display/dylib", "libs/portable", "libs/remote_printer"]
+members = ["libs/scrap", "libs/hbb_common_custom", "libs/base", "libs/enigo", "libs/clipboard", "libs/virtual_display", "libs/virtual_display/dylib", "libs/portable", "libs/remote_printer"]
 exclude = ["vdi/host"]
 
 # Patch libxdo-sys to use a stub implementation that doesn't require libxdo
@@ -265,7 +265,7 @@ winapi = { version = "0.3", features = [ "winnt", "pdh", "synchapi" ] }
 
 [build-dependencies]
 cc = "1.0"
-hbb_common = { path = "libs/hbb_common" }
+hbb_common = { path = "libs/hbb_common_custom" }
 os-version = "0.2"
 
 [dev-dependencies]
