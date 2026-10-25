@@ -355,6 +355,19 @@ fn tcp_punch_allowed() -> bool {
             || crate::get_webrtc_enabled())
 }
 
+/// Custom (self-hosted build): whether a failed key exchange with the rendezvous
+/// server may fall back to a plain rendezvous connection instead of aborting.
+///
+/// The open-source hbbs never performs the rendezvous key exchange, so with a
+/// sign-in token present every outgoing connection used to die on the exchange
+/// timeout. The fallback restores the pre-exchange behaviour (the same shape
+/// connections take when signed out); the peer session itself stays encrypted
+/// end to end either way. Set the user option
+/// `allow-plain-rendezvous-fallback` to `N` to restore the upstream behaviour.
+fn rendezvous_plain_fallback() -> bool {
+    Config::get_option("allow-plain-rendezvous-fallback") != "N"
+}
+
 impl Client {
     const CLIENT_CLIPBOARD_NAME: &'static str = "client-clipboard";
 
@@ -875,9 +888,18 @@ impl Client {
             }
         }
         if !exchanged && legacy_secure {
-            secure_tcp(&mut socket, &key)
-                .await
-                .map_err(|e| anyhow!("Failed to secure tcp: {}", e))?;
+            if let Err(e) = secure_tcp(&mut socket, &key).await {
+                if rendezvous_plain_fallback() {
+                    log::warn!(
+                        "rendezvous key exchange failed ({}), retrying on a plain socket",
+                        e
+                    );
+                    socket = connect_tcp(&*rendezvous_server, CONNECT_TIMEOUT).await?;
+                    my_addr = socket.local_addr();
+                } else {
+                    bail!("Failed to secure tcp: {}", e);
+                }
+            }
         }
         // A token or switch code has always taken this socket straight to the punch without
         // waiting for the UDP NAT test. The WebRTC exchange does not replace that wait, it only
@@ -1796,7 +1818,19 @@ impl Client {
                 .with_context(|| "Failed to connect to rendezvous server")?;
 
             if !key.is_empty() && (!token.is_empty() || !switch_code.is_empty()) {
-                secure_tcp(&mut socket, key).await?;
+                if let Err(e) = secure_tcp(&mut socket, key).await {
+                    if rendezvous_plain_fallback() {
+                        log::warn!(
+                            "rendezvous key exchange failed for relay request ({}), retrying on a plain socket",
+                            e
+                        );
+                        socket = connect_tcp(rendezvous_server, CONNECT_TIMEOUT)
+                            .await
+                            .with_context(|| "Failed to connect to rendezvous server")?;
+                    } else {
+                        return Err(e);
+                    }
+                }
             }
 
             ipv4 = socket.local_addr().is_ipv4();
